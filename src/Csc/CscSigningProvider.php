@@ -1,0 +1,243 @@
+<?php
+
+declare(strict_types=1);
+
+namespace IsyThl\Signing\Csc;
+
+use IsyThl\Signing\Exception\SigningException;
+use IsyThl\Signing\CertificateProviderInterface;
+use IsyThl\Signing\Http\HttpClientInterface;
+use IsyThl\Signing\Security\SecretResolverInterface;
+use IsyThl\Signing\SigningProviderInterface;
+use IsyThl\Signing\TimestampProviderInterface;
+
+final class CscSigningProvider implements SigningProviderInterface, TimestampProviderInterface, CertificateProviderInterface {
+    private const SHA256_OID = '2.16.840.1.101.3.4.2.1';
+    private const SHA512_OID = '2.16.840.1.101.3.4.2.3';
+
+    /** @var array{certificate: string, chain: array<int, string>}|null */
+    private ?array $certificateData = null;
+
+    /**
+     * @param array<string, mixed> $profile
+     * @param callable(int): void|null $sleeper
+     */
+    public function __construct(
+        private array $profile,
+        private HttpClientInterface $httpClient,
+        private SecretResolverInterface $secrets,
+        private $sleeper = null
+    ) {
+        foreach (['credential_id', 'client_id', 'oauth2_url', 'api_url', 'redirect_uri', 'sign_algo', 'client_secret', 'tls_certificate', 'tls_key'] as $field) {
+            if (!isset($profile[$field]) || !is_string($profile[$field]) || $profile[$field] === '') {
+                throw new SigningException('CSC profile is missing: ' . $field);
+            }
+        }
+        $this->sleeper ??= static function(int $microseconds): void {
+            usleep($microseconds);
+        };
+    }
+
+    public function sign(string $data): string {
+        if ($data === '') {
+            throw new SigningException('Cannot sign empty data.');
+        }
+        $hash = hash('sha256', $data, true);
+        $token = $this->authorize([$hash], self::SHA256_OID);
+        try {
+            $response = $this->httpClient->postJson($this->url('api_url', '/csc/v2/signatures/signHash'), [
+                'credentialID' => $this->profile['credential_id'],
+                'hashes' => [base64_encode($hash)],
+                'hashAlgorithmOID' => self::SHA256_OID,
+                'signAlgo' => $this->profile['sign_algo'],
+                'operationMode' => 'A',
+            ], $this->bearer($token));
+            $requestId = $response['responseID'] ?? null;
+            if (!is_string($requestId) || $requestId === '') {
+                throw new SigningException('CSC did not return a signing request identifier.');
+            }
+            return $this->poll($token, $requestId);
+        } finally {
+            $this->revoke($token);
+        }
+    }
+
+    public function signatureAlgorithm(): string {
+        if (!empty($this->profile['dss_signature_algorithm'])) {
+            return (string) $this->profile['dss_signature_algorithm'];
+        }
+        return match ($this->profile['sign_algo']) {
+            '1.2.840.10045.4.3.2' => 'ECDSA_SHA256',
+            '1.2.840.113549.1.1.1' => 'RSA_SHA256',
+            default => throw new SigningException('CSC signing algorithm is not supported.'),
+        };
+    }
+
+    public function certificateData(): array {
+        if ($this->certificateData !== null) {
+            return $this->certificateData;
+        }
+        $token = $this->authorize([hash('sha256', 'certificate-info', true)], self::SHA256_OID);
+        try {
+            $response = $this->httpClient->postJson($this->url('api_url', '/csc/v2/credentials/info'), [
+                'credentialID' => $this->profile['credential_id'],
+                'certificates' => 'chain',
+                'certInfo' => true,
+                'authInfo' => false,
+            ], $this->bearer($token));
+            $encodedChain = $response['cert']['certificates'] ?? $response['certificates'] ?? null;
+            if (!is_array($encodedChain) || $encodedChain === []) {
+                throw new SigningException('CSC did not return a certificate chain.');
+            }
+            $chain = [];
+            foreach ($encodedChain as $encodedCertificate) {
+                if (!is_string($encodedCertificate)) {
+                    throw new SigningException('CSC returned a malformed certificate chain.');
+                }
+                $der = base64_decode($encodedCertificate, true);
+                if ($der === false || $der === '') {
+                    throw new SigningException('CSC returned an invalid certificate.');
+                }
+                $chain[] = $this->pem($der);
+            }
+            return $this->certificateData = [
+                'certificate' => $chain[0],
+                'chain' => $chain,
+            ];
+        } finally {
+            $this->revoke($token);
+        }
+    }
+
+    public function timestamp(string $data): array {
+        if ($data === '') {
+            throw new SigningException('Cannot timestamp empty data.');
+        }
+        $hash = hash('sha512', $data, true);
+        $token = $this->authorize([$hash], self::SHA512_OID);
+        try {
+            $response = $this->httpClient->postForm($this->url('api_url', '/csc/v2/signatures/timestamp'), [
+                'hash' => base64_encode($hash),
+                'hashAlgo' => self::SHA512_OID,
+            ], $this->bearer($token));
+            $timestamp = $response['timeStampToken'] ?? null;
+            if (!is_string($timestamp) || $timestamp === '') {
+                throw new SigningException('CSC did not return a timestamp token.');
+            }
+            return [
+                'bytes' => $timestamp,
+                'digestAlgorithm' => 'SHA512',
+                'timestampContainerForm' => null,
+            ];
+        } finally {
+            $this->revoke($token);
+        }
+    }
+
+    /** @param array<int, string> $hashes */
+    private function authorize(array $hashes, string $hashAlgorithm): string {
+        $verifier = $this->base64url(random_bytes(32));
+        $response = $this->httpClient->postJson($this->url('oauth2_url', '/oauth2/authorize_tls'), [
+            'response_type' => 'code',
+            'client_id' => $this->profile['client_id'],
+            'redirect_uri' => $this->profile['redirect_uri'],
+            'scope' => 'credential',
+            'code_challenge' => $this->base64url(hash('sha256', $verifier, true)),
+            'code_challenge_method' => 'S256',
+            'numSignatures' => (string) count($hashes),
+            'hashAlgorithmOID' => $hashAlgorithm,
+            'hashes' => implode(',', array_map(fn(string $hash): string => $this->base64url($hash), $hashes)),
+            'state' => bin2hex(random_bytes(16)),
+            'credentialID' => $this->profile['credential_id'],
+        ], [], $this->tlsOptions());
+        $code = $response['code'] ?? null;
+        if (!is_string($code) || $code === '') {
+            throw new SigningException('CSC did not return an authorization code.');
+        }
+        $token = $this->httpClient->postForm($this->url('oauth2_url', '/oauth2/token'), [
+            'grant_type' => 'authorization_code',
+            'code' => $code,
+            'client_id' => $this->profile['client_id'],
+            'client_secret' => $this->secrets->resolve($this->profile['client_secret']),
+            'redirect_uri' => $this->profile['redirect_uri'],
+            'code_verifier' => $verifier,
+        ]);
+        $accessToken = $token['access_token'] ?? null;
+        if (!is_string($accessToken) || $accessToken === '') {
+            throw new SigningException('CSC did not return an access token.');
+        }
+        return $accessToken;
+    }
+
+    private function poll(string $token, string $requestId): string {
+        $maxAttempts = (int) ($this->profile['poll_max_attempts'] ?? 10);
+        $delay = (int) ($this->profile['poll_delay_microseconds'] ?? 2000000);
+        if ($maxAttempts < 1 || $delay < 0) {
+            throw new SigningException('CSC polling profile is invalid.');
+        }
+        for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+            $response = $this->httpClient->postJson($this->url('api_url', '/csc/v2/signatures/signPolling'), [
+                'requestID' => $requestId,
+            ], $this->bearer($token));
+            $signature = $response['signatures'][0] ?? null;
+            if (is_string($signature)) {
+                $decoded = $this->decode($signature);
+                if ($decoded !== false) {
+                    return $decoded;
+                }
+            }
+            if ($attempt < $maxAttempts) {
+                ($this->sleeper)($delay);
+            }
+        }
+        throw new SigningException('CSC signing polling timed out.');
+    }
+
+    private function revoke(string $token): void {
+        try {
+            $this->httpClient->postForm($this->url('oauth2_url', '/oauth2/revoke'), [
+                'token' => $token,
+                'token_type_hint' => 'access_token',
+                'client_id' => $this->profile['client_id'],
+                'client_secret' => $this->secrets->resolve($this->profile['client_secret']),
+            ], $this->bearer($token));
+        } catch (\Throwable) {
+        }
+    }
+
+    /** @return array<int, string> */
+    private function bearer(string $token): array {
+        return ['Authorization: Bearer ' . $token];
+    }
+
+    /** @return array<string, string|null> */
+    private function tlsOptions(): array {
+        return [
+            'certificate' => $this->secrets->resolve($this->profile['tls_certificate']),
+            'key' => $this->secrets->resolve($this->profile['tls_key']),
+            'ca_info' => isset($this->profile['tls_ca']) ? $this->secrets->resolve((string) $this->profile['tls_ca']) : null,
+        ];
+    }
+
+    private function url(string $base, string $path): string {
+        return rtrim((string) $this->profile[$base], '/') . $path;
+    }
+
+    private function base64url(string $value): string {
+        return rtrim(strtr(base64_encode($value), '+/', '-_'), '=');
+    }
+
+    private function decode(string $value): string|false {
+        $decoded = base64_decode($value, true);
+        if ($decoded !== false) {
+            return $decoded;
+        }
+        $normalized = strtr($value, '-_', '+/');
+        $normalized .= str_repeat('=', (4 - strlen($normalized) % 4) % 4);
+        return base64_decode($normalized, true);
+    }
+
+    private function pem(string $der): string {
+        return "-----BEGIN CERTIFICATE-----\n" . chunk_split(base64_encode($der), 64, "\n") . "-----END CERTIFICATE-----\n";
+    }
+}

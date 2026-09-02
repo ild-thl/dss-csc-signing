@@ -1,0 +1,107 @@
+# DSS/CSC Signing
+
+`isy-thl/dss-csc-signing` is a framework-independent PHP package for qualified
+JAdES signing workflows that combine:
+
+- a Digital Signature Services (DSS) API for document timestamps, JAdES
+	orchestration, and validation; and
+- a Cloud Signature Consortium (CSC) v2 API backed by a remote qualified
+	signature creation device for hash signing and certificate operations.
+
+The package accepts serialized JSON document bytes and returns serialized signed
+document bytes. It does not depend on Moodle, Laravel, ELM, Open Badges, or any
+other document model. Applications provide their own document mapping and
+configuration.
+
+## Current scope
+
+The package currently provides:
+
+- DSS signing orchestration for JAdES baseline LTA documents;
+- CSC v2 hash signing, timestamping, certificate discovery, PKCE, polling, and
+	access-token revocation;
+- RSA and ECDSA signing algorithm selection;
+- certificate-chain forwarding to DSS;
+- DSS validation before a signed document is released; and
+- injectable HTTP and secret-resolution boundaries for application integration.
+
+The intended signing sequence is:
+
+```text
+DSS document timestamp
+		-> DSS getDataToSign
+		-> CSC signHash
+		-> DSS signDocument
+		-> DSS validation
+```
+
+## Limitations
+
+This is an early package release. It does not currently provide:
+
+- document-format models or serializers;
+- a Laravel or Moodle integration package;
+- a live QTSP, DSS, or sandbox environment;
+- provider-specific production configuration;
+- persistent audit storage or an application logging implementation;
+- automatic certificate renewal or outage recovery; or
+- a guarantee that every DSS or CSC provider uses the same endpoint and
+	response profile.
+
+The application must verify the selected QTSP, QSCD, TSA, DSS deployment,
+trusted-list configuration, certificate purpose, and validation response schema
+before production issuance. Private keys, client secrets, access tokens, and
+mTLS material must be resolved at runtime and must not be committed or logged.
+
+## Requirements
+
+- PHP 8.1 or newer
+- PHP cURL extension
+- A DSS service exposing the required document-signing and validation APIs
+- A CSC v2-compatible signing provider and authorized credential
+
+## Installation
+
+```sh
+composer require isy-thl/dss-csc-signing
+```
+
+The package is framework-independent. Applications instantiate the DSS signer,
+CSC provider, HTTP client, secret resolver, and certificate/validation
+boundaries according to their own configuration. See the classes and tests for
+small fake-client examples.
+
+## Development and testing
+
+Clone the repository and install development dependencies:
+
+```sh
+git clone https://github.com/ild-thl/isy-dss-csc-signing.git
+cd isy-dss-csc-signing
+composer install
+vendor/bin/phpunit -c phpunit.xml
+```
+
+The test suite uses fake HTTP clients and signing providers. It does not call a
+live DSS service, QTSP, TSA, or private key. Run Composer validation as part of
+release preparation:
+
+```sh
+composer validate --strict
+```
+
+## Releases
+
+Releases are published from Git tags using semantic versioning. The `main`
+branch and version tags are tested by GitHub Actions. Packagist should be
+connected to the GitHub repository so tagged releases are imported
+automatically.
+
+## References
+
+- [Digital Signature Service (DSS)](https://ec.europa.eu/digital-building-blocks/sites/spaces/DIGITAL/pages/467109107/Digital+Signature+Service+-+DSS)
+- [Cloud Signature Consortium API v2.0.0.2](https://cloudsignatureconsortium.org/wp-content/uploads/2023/04/csc-api-v2.0.0.2.pdf)
+
+## License
+
+GPL-3.0-or-later

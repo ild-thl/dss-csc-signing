@@ -1,0 +1,23 @@
+{
+    "name": "isy-thl/dss-csc-signing",
+    "description": "Framework-independent DSS and CSC JAdES signing integration",
+    "type": "library",
+    "license": "GPL-3.0-or-later",
+    "require": {
+        "php": ">=8.1",
+        "ext-curl": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "IsyThl\\Signing\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "IsyThl\\Signing\\Tests\\": "tests/"
+        }
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.6"
+    }
+}

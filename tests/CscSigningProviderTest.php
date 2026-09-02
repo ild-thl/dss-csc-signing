@@ -1,0 +1,161 @@
+<?php
+
+declare(strict_types=1);
+
+namespace IsyThl\Signing\Tests;
+
+use IsyThl\Signing\Csc\CscSigningProvider;
+use IsyThl\Signing\Exception\SigningException;
+use IsyThl\Signing\Http\HttpClientInterface;
+use IsyThl\Signing\Security\SecretResolverInterface;
+use PHPUnit\Framework\TestCase;
+
+final class CscSigningProviderTest extends TestCase {
+    public function test_signs_only_the_digest_uses_profile_values_and_revokes(): void {
+        $client = new FakeCscHttpClient([
+            ['code' => 'authorization-code'],
+            ['access_token' => 'access-token'],
+            ['responseID' => 'request-id'],
+            ['signatures' => [base64_encode('signature-bytes')]],
+            [],
+        ]);
+        $provider = new CscSigningProvider($this->profile(), $client, new FakeSecrets(), static function(): void {
+        });
+
+        $this->assertSame('signature-bytes', $provider->sign('DSS data to sign'));
+        $signRequest = $client->requests[2];
+        $this->assertSame('credential-id', $signRequest['data']['credentialID']);
+        $this->assertSame('profile-sign-algorithm', $signRequest['data']['signAlgo']);
+        $this->assertSame(base64_encode(hash('sha256', 'DSS data to sign', true)), $signRequest['data']['hashes'][0]);
+        $this->assertArrayNotHasKey('document', $signRequest['data']);
+        $this->assertSame('/oauth2/revoke', $client->requests[4]['path']);
+    }
+
+    public function test_pkce_and_timestamp_hash_are_correct(): void {
+        $client = new FakeCscHttpClient([
+            ['code' => 'authorization-code'],
+            ['access_token' => 'access-token'],
+            ['timeStampToken' => 'timestamp-token'],
+            [],
+        ]);
+        $provider = new CscSigningProvider($this->profile(), $client, new FakeSecrets(), static function(): void {
+        });
+
+        $this->assertSame([
+            'bytes' => 'timestamp-token',
+            'digestAlgorithm' => 'SHA512',
+            'timestampContainerForm' => null,
+        ], $provider->timestamp('document-bytes'));
+        $authorization = $client->requests[0]['data'];
+        $token = $client->requests[1]['data'];
+        $this->assertSame(
+            rtrim(strtr(base64_encode(hash('sha256', $token['code_verifier'], true)), '+/', '-_'), '='),
+            $authorization['code_challenge']
+        );
+        $this->assertSame(base64_encode(hash('sha512', 'document-bytes', true)), $client->requests[2]['data']['hash']);
+        $this->assertSame('2.16.840.1.101.3.4.2.3', $client->requests[2]['data']['hashAlgo']);
+    }
+
+    public function test_polling_is_bounded_and_reuses_request_id(): void {
+        $client = new FakeCscHttpClient([
+            ['code' => 'authorization-code'],
+            ['access_token' => 'access-token'],
+            ['responseID' => 'request-id'],
+            ['signatures' => []],
+            ['signatures' => []],
+            [],
+        ]);
+        $profile = $this->profile();
+        $profile['poll_max_attempts'] = 2;
+        $provider = new CscSigningProvider($profile, $client, new FakeSecrets(), static function(): void {
+        });
+
+        $this->expectException(SigningException::class);
+        try {
+            $provider->sign('DSS data to sign');
+        } finally {
+            $this->assertSame('request-id', $client->requests[3]['data']['requestID']);
+            $this->assertSame('request-id', $client->requests[4]['data']['requestID']);
+            $this->assertSame('/oauth2/revoke', $client->requests[5]['path']);
+        }
+    }
+
+    public function test_certificate_data_discovers_and_caches_the_configured_chain(): void {
+        $client = new FakeCscHttpClient([
+            ['code' => 'authorization-code'],
+            ['access_token' => 'access-token'],
+            ['cert' => ['certificates' => [base64_encode('certificate-der'), base64_encode('chain-der')]]],
+            [],
+        ]);
+        $provider = new CscSigningProvider($this->profile(), $client, new FakeSecrets(), static function(): void {
+        });
+
+        $certificateData = $provider->certificateData();
+        $this->assertStringContainsString('-----BEGIN CERTIFICATE-----', $certificateData['certificate']);
+        $this->assertCount(2, $certificateData['chain']);
+        $this->assertSame('/csc/v2/credentials/info', $client->requests[2]['path']);
+        $this->assertSame('credential-id', $client->requests[2]['data']['credentialID']);
+        $this->assertSame('/oauth2/revoke', $client->requests[3]['path']);
+        $this->assertSame($certificateData, $provider->certificateData());
+        $this->assertCount(4, $client->requests);
+    }
+
+    public function test_signature_algorithm_maps_the_profile_key_algorithm(): void {
+        $profile = $this->profile();
+        $profile['sign_algo'] = '1.2.840.10045.4.3.2';
+        $provider = new CscSigningProvider($profile, new FakeCscHttpClient([]), new FakeSecrets());
+
+        $this->assertSame('ECDSA_SHA256', $provider->signatureAlgorithm());
+    }
+
+    private function profile(): array {
+        return [
+            'credential_id' => 'credential-id',
+            'client_id' => 'client-id',
+            'oauth2_url' => 'https://oauth.example',
+            'api_url' => 'https://api.example',
+            'redirect_uri' => 'https://client.example/callback',
+            'sign_algo' => 'profile-sign-algorithm',
+            'client_secret' => 'client_secret',
+            'tls_certificate' => 'tls_certificate',
+            'tls_key' => 'tls_key',
+            'poll_max_attempts' => 10,
+        ];
+    }
+}
+
+final class FakeSecrets implements SecretResolverInterface {
+    public function resolve(string $name): string {
+        return $name === 'client_secret' ? 'client-secret' : '/resolved/' . $name;
+    }
+}
+
+final class FakeCscHttpClient implements HttpClientInterface {
+    public array $requests = [];
+
+    public function __construct(private array $responses) {
+    }
+
+    public function postJson(string $url, array $data, array $headers = [], array $tlsOptions = []): array {
+        return $this->record('json', $url, $data, $headers, $tlsOptions);
+    }
+
+    public function postForm(string $url, array $data, array $headers = [], array $tlsOptions = []): array {
+        return $this->record('form', $url, $data, $headers, $tlsOptions);
+    }
+
+    private function record(string $transport, string $url, array $data, array $headers, array $tlsOptions): array {
+        $this->requests[] = [
+            'transport' => $transport,
+            'path' => parse_url($url, PHP_URL_PATH),
+            'data' => $data,
+            'headers' => $headers,
+            'tls_options' => $tlsOptions,
+        ];
+        $response = array_shift($this->responses);
+        if ($response instanceof \Throwable) {
+            throw $response;
+        }
+        return $response;
+    }
+}
