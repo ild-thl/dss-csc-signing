@@ -124,7 +124,7 @@ final class CscSigningProviderTest extends TestCase {
         $client = new FakeCscHttpClient([
             ['code' => 'authorization-code'],
             ['access_token' => 'access-token'],
-            ['cert' => ['certificates' => [base64_encode('certificate-der'), base64_encode('chain-der')]]],
+            ['cert' => ['certificates' => [$this->certificateDerBase64(), $this->certificateDerBase64()]]],
             [],
         ]);
         $provider = new CscSigningProvider($this->profile(), $client, new FakeSecrets(), static function(): void {
@@ -138,6 +138,27 @@ final class CscSigningProviderTest extends TestCase {
         $this->assertSame('/oauth2/revoke', $client->requests[3]['path']);
         $this->assertSame($certificateData, $provider->certificateData());
         $this->assertCount(4, $client->requests);
+    }
+
+    private function certificateDerBase64(): string {
+        $pem = file_get_contents(__DIR__ . '/fixtures/test-certificate.pem');
+        $der = preg_replace('/-----[^-]+-----|\s+/', '', (string) $pem);
+        return base64_encode((string) base64_decode((string) $der, true));
+    }
+
+    public function test_malformed_certificate_chain_is_rejected(): void {
+        $client = new FakeCscHttpClient([
+            ['code' => 'authorization-code'],
+            ['access_token' => 'access-token'],
+            ['cert' => ['certificates' => [base64_encode('not-a-certificate')]]],
+            [],
+        ]);
+        $provider = new CscSigningProvider($this->profile(), $client, new FakeSecrets(), static function(): void {
+        });
+
+        $this->expectException(SigningException::class);
+        $this->expectExceptionMessage('CSC returned an invalid certificate.');
+        $provider->certificateData();
     }
 
     public function test_signature_algorithm_maps_the_profile_key_algorithm(): void {

@@ -99,7 +99,11 @@ final class CscSigningProvider implements SigningProviderInterface, TimestampPro
                 if ($der === false || $der === '') {
                     throw new SigningException('CSC returned an invalid certificate.');
                 }
-                $chain[] = $this->pem($der);
+                $certificate = $this->pem($der);
+                if (@openssl_x509_read($certificate) === false) {
+                    throw new SigningException('CSC returned an invalid certificate.');
+                }
+                $chain[] = $certificate;
             }
             return $this->certificateData = [
                 'certificate' => $chain[0],
