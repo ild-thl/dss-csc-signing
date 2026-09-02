@@ -25,4 +25,6 @@ jobs:
         with:
           dependency-versions: highest
       - run: composer validate --strict
+      - run: composer lint
+      - run: composer style
       - run: vendor/bin/phpunit -c phpunit.xml

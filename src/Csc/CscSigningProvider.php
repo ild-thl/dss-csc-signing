@@ -12,7 +12,11 @@ use IsyThl\Signing\Security\SecretResolverInterface;
 use IsyThl\Signing\SigningProviderInterface;
 use IsyThl\Signing\TimestampProviderInterface;
 
-final class CscSigningProvider implements SigningProviderInterface, TimestampProviderInterface, CertificateProviderInterface {
+final class CscSigningProvider implements
+    SigningProviderInterface,
+    TimestampProviderInterface,
+    CertificateProviderInterface {
+
     private const SHA256_OID = '2.16.840.1.101.3.4.2.1';
     private const SHA512_OID = '2.16.840.1.101.3.4.2.3';
 
@@ -29,12 +33,17 @@ final class CscSigningProvider implements SigningProviderInterface, TimestampPro
         private SecretResolverInterface $secrets,
         private $sleeper = null
     ) {
-        foreach (['credential_id', 'client_id', 'oauth2_url', 'api_url', 'redirect_uri', 'sign_algo', 'client_secret', 'tls_certificate', 'tls_key'] as $field) {
+        foreach (
+            [
+                'credential_id', 'client_id', 'oauth2_url', 'api_url', 'redirect_uri', 'sign_algo', 'client_secret',
+                'tls_certificate', 'tls_key',
+            ] as $field
+        ) {
             if (!isset($profile[$field]) || !is_string($profile[$field]) || $profile[$field] === '') {
                 throw new SigningException('CSC profile is missing: ' . $field);
             }
         }
-        $this->sleeper ??= static function(int $microseconds): void {
+        $this->sleeper ??= static function (int $microseconds): void {
             usleep($microseconds);
         };
     }
@@ -105,17 +114,19 @@ final class CscSigningProvider implements SigningProviderInterface, TimestampPro
                 }
                 $chain[] = $certificate;
             }
-                for ($index = 0, $last = count($chain) - 1; $index < $last; $index++) {
-                    $certificate = @openssl_x509_parse($chain[$index]);
-                    $issuer = @openssl_x509_parse($chain[$index + 1]);
-                    $issuerKey = @openssl_pkey_get_public($chain[$index + 1]);
-                    if (!is_array($certificate) || !is_array($issuer)
-                        || $issuerKey === false
-                        || ($certificate['issuer'] ?? null) !== ($issuer['subject'] ?? null)
-                        || @openssl_x509_verify($chain[$index], $issuerKey) !== 1) {
-                        throw new SigningException('CSC returned an invalid certificate chain.');
-                    }
+            for ($index = 0, $last = count($chain) - 1; $index < $last; $index++) {
+                $certificate = @openssl_x509_parse($chain[$index]);
+                $issuer = @openssl_x509_parse($chain[$index + 1]);
+                $issuerKey = @openssl_pkey_get_public($chain[$index + 1]);
+                if (
+                    !is_array($certificate) || !is_array($issuer)
+                    || $issuerKey === false
+                    || ($certificate['issuer'] ?? null) !== ($issuer['subject'] ?? null)
+                    || @openssl_x509_verify($chain[$index], $issuerKey) !== 1
+                ) {
+                    throw new SigningException('CSC returned an invalid certificate chain.');
                 }
+            }
             return $this->certificateData = [
                 'certificate' => $chain[0],
                 'chain' => $chain,
@@ -198,10 +209,12 @@ final class CscSigningProvider implements SigningProviderInterface, TimestampPro
                     'requestID' => $requestId,
                 ], $this->bearer($token));
             } catch (HttpException $exception) {
-                if ($exception->statusCode !== 400 || !str_contains(
-                    strtolower($exception->getMessage()),
-                    'previous asynchronous signature request'
-                )) {
+                if (
+                    $exception->statusCode !== 400 || !str_contains(
+                        strtolower($exception->getMessage()),
+                        'previous asynchronous signature request'
+                    )
+                ) {
                     throw $exception;
                 }
                 $pending = true;
@@ -252,7 +265,9 @@ final class CscSigningProvider implements SigningProviderInterface, TimestampPro
         return [
             'certificate' => $this->secrets->resolve($this->profile['tls_certificate']),
             'key' => $this->secrets->resolve($this->profile['tls_key']),
-            'ca_info' => isset($this->profile['tls_ca']) ? $this->secrets->resolve((string) $this->profile['tls_ca']) : null,
+            'ca_info' => isset($this->profile['tls_ca'])
+                ? $this->secrets->resolve((string) $this->profile['tls_ca'])
+                : null,
         ];
     }
 
@@ -275,6 +290,8 @@ final class CscSigningProvider implements SigningProviderInterface, TimestampPro
     }
 
     private function pem(string $der): string {
-        return "-----BEGIN CERTIFICATE-----\n" . chunk_split(base64_encode($der), 64, "\n") . "-----END CERTIFICATE-----\n";
+        return "-----BEGIN CERTIFICATE-----\n"
+            . chunk_split(base64_encode($der), 64, "\n")
+            . "-----END CERTIFICATE-----\n";
     }
 }

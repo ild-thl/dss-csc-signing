@@ -10,6 +10,7 @@ use IsyThl\Signing\Http\HttpClientInterface;
 use PHPUnit\Framework\TestCase;
 
 final class DssValidatorTest extends TestCase {
+
     public function test_validation_requires_qualification_evidence(): void {
         $client = new FakeValidationHttpClient([
             'valid' => true,
@@ -59,21 +60,5 @@ final class DssValidatorTest extends TestCase {
 
         $this->expectException(ValidationException::class);
         $validator->validate('{"signed":true}');
-    }
-}
-
-final class FakeValidationHttpClient implements HttpClientInterface {
-    public string $documentBytes = '';
-
-    public function __construct(private array $response) {
-    }
-
-    public function postJson(string $url, array $data, array $headers = [], array $tlsOptions = []): array {
-        $this->documentBytes = $data['signedDocument']['bytes'];
-        return $this->response;
-    }
-
-    public function postForm(string $url, array $data, array $headers = [], array $tlsOptions = []): array {
-        throw new \LogicException('form transport is not used');
     }
 }

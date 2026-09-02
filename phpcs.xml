@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<ruleset name="IsyThl Signing">
+    <description>PSR-12-inspired coding standard with same-line opening braces.</description>
+    <rule ref="PSR12">
+        <exclude name="PSR1.Classes.ClassDeclaration.MultipleFound"/>
+        <exclude name="PSR1.Methods.CamelCapsMethodName"/>
+        <exclude name="PSR2.Classes.ClassDeclaration.OpenBraceNewLine"/>
+        <exclude name="PSR12.Classes.OpeningBraceSpace"/>
+        <exclude name="Squiz.Functions.MultiLineFunctionDeclaration.BraceOnSameLine"/>
+    </rule>
+    <rule ref="Generic.Classes.OpeningBraceSameLine"/>
+    <rule ref="Generic.Functions.OpeningFunctionBraceKernighanRitchie"/>
+    <file>src</file>
+    <file>tests</file>
+    <arg name="colors"/>
+    <arg name="parallel" value="4"/>
+</ruleset>

@@ -7,6 +7,7 @@ namespace IsyThl\Signing\Security;
 use IsyThl\Signing\Exception\SigningException;
 
 final class EnvironmentSecretResolver implements SecretResolverInterface {
+
     public function resolve(string $name): string {
         if ($name === '') {
             throw new SigningException('Secret name must not be empty.');

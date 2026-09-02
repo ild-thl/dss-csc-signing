@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace IsyThl\Signing\Exception;
 
 final class HttpException extends SigningException {
+
     /** @param array<string, mixed> $responseData */
     public function __construct(
         string $message,

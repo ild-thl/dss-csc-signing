@@ -10,6 +10,7 @@ use IsyThl\Signing\Http\HttpClientInterface;
 use IsyThl\Signing\ValidationResult;
 
 final class DssValidator implements DocumentValidatorInterface {
+
     public function __construct(
         private HttpClientInterface $httpClient,
         private string $serviceUrl,
@@ -28,7 +29,11 @@ final class DssValidator implements DocumentValidatorInterface {
             rtrim($this->serviceUrl, '/') . $this->validationPath,
             ['signedDocument' => ['bytes' => base64_encode($signedDocument)]]
         );
-        foreach (['valid', 'qualified', 'certificateTrusted', 'revocationValid', 'timestampValid', 'trustedListValid'] as $field) {
+        foreach (
+            [
+                'valid', 'qualified', 'certificateTrusted', 'revocationValid', 'timestampValid', 'trustedListValid',
+            ] as $field
+        ) {
             if (!isset($report[$field]) || !is_bool($report[$field])) {
                 throw new ValidationException('DSS validation response is missing: ' . $field, $report);
             }
@@ -43,8 +48,10 @@ final class DssValidator implements DocumentValidatorInterface {
             $report,
             array_values($evidence)
         );
-        if (!$result->isValid() || !$result->isQualified() || !$report['certificateTrusted']
-            || !$report['revocationValid'] || !$report['timestampValid'] || !$report['trustedListValid']) {
+        if (
+            !$result->isValid() || !$result->isQualified() || !$report['certificateTrusted']
+            || !$report['revocationValid'] || !$report['timestampValid'] || !$report['trustedListValid']
+        ) {
             throw new ValidationException('DSS validation did not meet the qualified issuance policy.', $report);
         }
         return $result;

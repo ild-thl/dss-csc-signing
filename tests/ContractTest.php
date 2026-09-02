@@ -11,6 +11,7 @@ use IsyThl\Signing\SigningProviderInterface;
 use PHPUnit\Framework\TestCase;
 
 final class ContractTest extends TestCase {
+
     public function test_http_and_signing_contracts_are_framework_independent(): void {
         $http = new class implements HttpClientInterface {
             public function postJson(string $url, array $data, array $headers = [], array $tlsOptions = []): array {

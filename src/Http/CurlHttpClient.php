@@ -9,15 +9,24 @@ use IsyThl\Signing\Logging\LoggerInterface;
 use JsonException;
 
 final class CurlHttpClient implements HttpClientInterface {
+
     /**
-     * @param callable(string, string, string, array<int, string>, array<string, string>): array{body: string|false, status: int, error: string} $request
+    * @param callable(
+    *     string, string, string, array<int, string>, array<string, string>
+    * ): array{body: string|false, status: int, error: string} $request
      */
     public function __construct(
         private $request = null,
         private ?LoggerInterface $logger = null,
         private string $userAgent = 'isy-thl/dss-csc-signing'
     ) {
-        $this->request ??= function(string $url, string $body, string $contentType, array $headers, array $tlsOptions): array {
+        $this->request ??= function (
+            string $url,
+            string $body,
+            string $contentType,
+            array $headers,
+            array $tlsOptions
+        ): array {
             $curl = curl_init($url);
             curl_setopt_array($curl, [
                 CURLOPT_RETURNTRANSFER => true,
@@ -59,7 +68,13 @@ final class CurlHttpClient implements HttpClientInterface {
     }
 
     public function postForm(string $url, array $data, array $headers = [], array $tlsOptions = []): array {
-        return $this->post($url, http_build_query($data, '', '&', PHP_QUERY_RFC3986), 'application/x-www-form-urlencoded', $headers, $tlsOptions);
+        return $this->post(
+            $url,
+            http_build_query($data, '', '&', PHP_QUERY_RFC3986),
+            'application/x-www-form-urlencoded',
+            $headers,
+            $tlsOptions
+        );
     }
 
     /** @return array<string, mixed> */
@@ -84,7 +99,10 @@ final class CurlHttpClient implements HttpClientInterface {
         if ($response['body'] === false || $response['status'] < 200 || $response['status'] >= 300) {
             $detail = $response['error'] !== '' ? '; transport error: ' . $response['error'] : '';
             $providerDetail = $errorDetails !== null ? '; provider error: ' . $errorDetails : '';
-            throw new HttpException('HTTP request failed with status ' . $response['status'] . $detail . $providerDetail . '.', $response['status']);
+            throw new HttpException(
+                'HTTP request failed with status ' . $response['status'] . $detail . $providerDetail . '.',
+                $response['status']
+            );
         }
         if ($response['status'] === 204 && trim($response['body']) === '') {
             return [];
@@ -129,12 +147,19 @@ final class CurlHttpClient implements HttpClientInterface {
         if ($error === null && $description === null) {
             return null;
         }
-        $detail = implode(': ', array_filter([$error, $description]));
+        $detail = implode(
+            ': ',
+            array_filter([$error, $description])
+        );
         return $this->redact($detail);
     }
 
     private function redact(string $detail): string {
-        $detail = preg_replace('/(token|secret|code|hash|signature)\s*[:=]\s*[^,;\s]+/i', '$1=[redacted]', $detail) ?? $detail;
+        $detail = preg_replace(
+            '/(token|secret|code|hash|signature)\s*[:=]\s*[^,;\s]+/i',
+            '$1=[redacted]',
+            $detail
+        ) ?? $detail;
         return substr($detail, 0, 200);
     }
 }

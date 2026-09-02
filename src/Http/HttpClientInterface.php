@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace IsyThl\Signing\Http;
 
 interface HttpClientInterface {
+
     /**
      * @return array<string, mixed>
      */

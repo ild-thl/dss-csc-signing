@@ -12,6 +12,7 @@ use IsyThl\Signing\SigningProviderInterface;
 use IsyThl\Signing\TimestampProviderInterface;
 
 final class DssSigner {
+
     private string $certificate;
 
     /** @var array<int, string> */
@@ -58,7 +59,10 @@ final class DssSigner {
         }
 
         $documentData = array_merge($documentData, $trustedMetadata);
-        $serializedDocument = json_encode($documentData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        $serializedDocument = json_encode(
+            $documentData,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+        );
         $timestampData = $this->timestamp($serializedDocument);
         $requestBody = $this->requestBody($serializedDocument, $timestampData);
         $dataToSignResponse = $this->httpClient->postJson($this->url('/one-document/getDataToSign'), $requestBody);

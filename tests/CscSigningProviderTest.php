@@ -12,6 +12,7 @@ use IsyThl\Signing\Security\SecretResolverInterface;
 use PHPUnit\Framework\TestCase;
 
 final class CscSigningProviderTest extends TestCase {
+
     public function test_signs_only_the_digest_uses_profile_values_and_revokes(): void {
         $client = new FakeCscHttpClient([
             ['code' => 'authorization-code'],
@@ -20,7 +21,7 @@ final class CscSigningProviderTest extends TestCase {
             ['signatures' => [base64_encode('signature-bytes')]],
             [],
         ]);
-        $provider = new CscSigningProvider($this->profile(), $client, new FakeSecrets(), static function(): void {
+        $provider = new CscSigningProvider($this->profile(), $client, new FakeSecrets(), static function (): void {
         });
 
         $this->assertSame('signature-bytes', $provider->sign('DSS data to sign'));
@@ -39,7 +40,7 @@ final class CscSigningProviderTest extends TestCase {
             ['timeStampToken' => 'timestamp-token'],
             [],
         ]);
-        $provider = new CscSigningProvider($this->profile(), $client, new FakeSecrets(), static function(): void {
+        $provider = new CscSigningProvider($this->profile(), $client, new FakeSecrets(), static function (): void {
         });
 
         $this->assertSame([
@@ -63,13 +64,21 @@ final class CscSigningProviderTest extends TestCase {
             ['code' => 'authorization-code'],
             ['access_token' => 'access-token'],
             ['responseID' => 'request-id'],
-            new HttpException('HTTP request failed with status 400; provider error: invalid_request: The previous asynchronous signature request has been accepted for processing, but the processing has not yet been completed.', 400),
-            new HttpException('HTTP request failed with status 400; provider error: invalid_request: The previous asynchronous signature request has been accepted for processing, but the processing has not yet been completed.', 400),
+            new HttpException(
+                'HTTP request failed with status 400; provider error: invalid_request: The previous asynchronous '
+                . 'signature request has been accepted for processing, but the processing has not yet been completed.',
+                400
+            ),
+            new HttpException(
+                'HTTP request failed with status 400; provider error: invalid_request: The previous asynchronous '
+                . 'signature request has been accepted for processing, but the processing has not yet been completed.',
+                400
+            ),
             [],
         ]);
         $profile = $this->profile();
         $profile['poll_max_attempts'] = 2;
-        $provider = new CscSigningProvider($profile, $client, new FakeSecrets(), static function(): void {
+        $provider = new CscSigningProvider($profile, $client, new FakeSecrets(), static function (): void {
         });
 
         $this->expectException(SigningException::class);
@@ -87,11 +96,15 @@ final class CscSigningProviderTest extends TestCase {
             ['code' => 'authorization-code'],
             ['access_token' => 'access-token'],
             ['responseID' => 'request-id'],
-            new HttpException('HTTP request failed with status 400; provider error: invalid_request: The previous asynchronous signature request has been accepted for processing, but the processing has not yet been completed.', 400),
+            new HttpException(
+                'HTTP request failed with status 400; provider error: invalid_request: The previous asynchronous '
+                . 'signature request has been accepted for processing, but the processing has not yet been completed.',
+                400
+            ),
             ['signatures' => [base64_encode('signature-bytes')]],
             [],
         ]);
-        $provider = new CscSigningProvider($this->profile(), $client, new FakeSecrets(), static function(): void {
+        $provider = new CscSigningProvider($this->profile(), $client, new FakeSecrets(), static function (): void {
         });
 
         $this->assertSame('signature-bytes', $provider->sign('DSS data to sign'));
@@ -108,7 +121,7 @@ final class CscSigningProviderTest extends TestCase {
             ['signatures' => []],
             [],
         ]);
-        $provider = new CscSigningProvider($this->profile(), $client, new FakeSecrets(), static function(): void {
+        $provider = new CscSigningProvider($this->profile(), $client, new FakeSecrets(), static function (): void {
         });
 
         $this->expectExceptionMessage('CSC returned an empty signature response.');
@@ -132,7 +145,7 @@ final class CscSigningProviderTest extends TestCase {
         $profile = $this->profile();
         $profile['poll_max_attempts'] = 2;
         $profile['poll_delay_microseconds'] = 0;
-        $provider = new CscSigningProvider($profile, $client, new FakeSecrets(), static function(): void {
+        $provider = new CscSigningProvider($profile, $client, new FakeSecrets(), static function (): void {
         });
 
         $this->expectException(SigningException::class);
@@ -147,7 +160,7 @@ final class CscSigningProviderTest extends TestCase {
             ['cert' => ['certificates' => [$this->certificateDerBase64(), $this->certificateDerBase64()]]],
             [],
         ]);
-        $provider = new CscSigningProvider($this->profile(), $client, new FakeSecrets(), static function(): void {
+        $provider = new CscSigningProvider($this->profile(), $client, new FakeSecrets(), static function (): void {
         });
 
         $certificateData = $provider->certificateData();
@@ -160,23 +173,23 @@ final class CscSigningProviderTest extends TestCase {
         $this->assertCount(4, $client->requests);
     }
 
-        public function test_unrelated_certificate_chain_is_rejected(): void {
-            $client = new FakeCscHttpClient([
-                ['code' => 'authorization-code'],
-                ['access_token' => 'access-token'],
-                ['cert' => ['certificates' => [
-                    $this->certificateDerBase64('test-chain-leaf.pem'),
-                    $this->certificateDerBase64('test-certificate.pem'),
-                ]]],
-                [],
-            ]);
-            $provider = new CscSigningProvider($this->profile(), $client, new FakeSecrets(), static function(): void {
-            });
+    public function test_unrelated_certificate_chain_is_rejected(): void {
+        $client = new FakeCscHttpClient([
+            ['code' => 'authorization-code'],
+            ['access_token' => 'access-token'],
+            ['cert' => ['certificates' => [
+                $this->certificateDerBase64('test-chain-leaf.pem'),
+                $this->certificateDerBase64('test-certificate.pem'),
+            ]]],
+            [],
+        ]);
+        $provider = new CscSigningProvider($this->profile(), $client, new FakeSecrets(), static function (): void {
+        });
 
-            $this->expectException(SigningException::class);
-            $this->expectExceptionMessage('CSC returned an invalid certificate chain.');
-            $provider->certificateData();
-        }
+        $this->expectException(SigningException::class);
+        $this->expectExceptionMessage('CSC returned an invalid certificate chain.');
+        $provider->certificateData();
+    }
 
     public function test_ecdsa_certificate_chain_is_parseable(): void {
         $client = new FakeCscHttpClient([
@@ -187,7 +200,7 @@ final class CscSigningProviderTest extends TestCase {
         ]);
         $profile = $this->profile();
         $profile['sign_algo'] = '1.2.840.10045.4.3.2';
-        $provider = new CscSigningProvider($profile, $client, new FakeSecrets(), static function(): void {
+        $provider = new CscSigningProvider($profile, $client, new FakeSecrets(), static function (): void {
         });
 
         $certificateData = $provider->certificateData();
@@ -208,7 +221,7 @@ final class CscSigningProviderTest extends TestCase {
             ['cert' => ['certificates' => [base64_encode('not-a-certificate')]]],
             [],
         ]);
-        $provider = new CscSigningProvider($this->profile(), $client, new FakeSecrets(), static function(): void {
+        $provider = new CscSigningProvider($this->profile(), $client, new FakeSecrets(), static function (): void {
         });
 
         $this->expectException(SigningException::class);
@@ -237,41 +250,5 @@ final class CscSigningProviderTest extends TestCase {
             'tls_key' => 'tls_key',
             'poll_max_attempts' => 10,
         ];
-    }
-}
-
-final class FakeSecrets implements SecretResolverInterface {
-    public function resolve(string $name): string {
-        return $name === 'client_secret' ? 'client-secret' : '/resolved/' . $name;
-    }
-}
-
-final class FakeCscHttpClient implements HttpClientInterface {
-    public array $requests = [];
-
-    public function __construct(private array $responses) {
-    }
-
-    public function postJson(string $url, array $data, array $headers = [], array $tlsOptions = []): array {
-        return $this->record('json', $url, $data, $headers, $tlsOptions);
-    }
-
-    public function postForm(string $url, array $data, array $headers = [], array $tlsOptions = []): array {
-        return $this->record('form', $url, $data, $headers, $tlsOptions);
-    }
-
-    private function record(string $transport, string $url, array $data, array $headers, array $tlsOptions): array {
-        $this->requests[] = [
-            'transport' => $transport,
-            'path' => parse_url($url, PHP_URL_PATH),
-            'data' => $data,
-            'headers' => $headers,
-            'tls_options' => $tlsOptions,
-        ];
-        $response = array_shift($this->responses);
-        if ($response instanceof \Throwable) {
-            throw $response;
-        }
-        return $response;
     }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace IsyThl\Signing;
 
 final class ValidationResult {
+
     /** @param array<string, mixed> $report @param array<int, string> $evidenceIdentifiers */
     public function __construct(
         private bool $valid,
