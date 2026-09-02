@@ -140,8 +140,25 @@ final class CscSigningProviderTest extends TestCase {
         $this->assertCount(4, $client->requests);
     }
 
-    private function certificateDerBase64(): string {
-        $pem = file_get_contents(__DIR__ . '/fixtures/test-certificate.pem');
+    public function test_ecdsa_certificate_chain_is_parseable(): void {
+        $client = new FakeCscHttpClient([
+            ['code' => 'authorization-code'],
+            ['access_token' => 'access-token'],
+            ['cert' => ['certificates' => [$this->certificateDerBase64('test-ecdsa-certificate.pem')]]],
+            [],
+        ]);
+        $profile = $this->profile();
+        $profile['sign_algo'] = '1.2.840.10045.4.3.2';
+        $provider = new CscSigningProvider($profile, $client, new FakeSecrets(), static function(): void {
+        });
+
+        $certificateData = $provider->certificateData();
+        $this->assertStringContainsString('-----BEGIN CERTIFICATE-----', $certificateData['certificate']);
+        $this->assertCount(1, $certificateData['chain']);
+    }
+
+    private function certificateDerBase64(string $filename = 'test-certificate.pem'): string {
+        $pem = file_get_contents(__DIR__ . '/fixtures/' . $filename);
         $der = preg_replace('/-----[^-]+-----|\s+/', '', (string) $pem);
         return base64_encode((string) base64_decode((string) $der, true));
     }

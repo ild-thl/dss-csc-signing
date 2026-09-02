@@ -57,6 +57,7 @@ mTLS material must be resolved at runtime and must not be committed or logged.
 
 - PHP 8.1 or newer
 - PHP cURL extension
+- PHP OpenSSL extension
 - A DSS service exposing the required document-signing and validation APIs
 - A CSC v2-compatible signing provider and authorized credential
 
