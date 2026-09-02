@@ -120,6 +120,26 @@ final class CscSigningProviderTest extends TestCase {
         }
     }
 
+    public function test_empty_encoded_signature_does_not_succeed(): void {
+        $client = new FakeCscHttpClient([
+            ['code' => 'authorization-code'],
+            ['access_token' => 'access-token'],
+            ['responseID' => 'request-id'],
+            ['signatures' => ['']],
+            ['signatures' => ['']],
+            [],
+        ]);
+        $profile = $this->profile();
+        $profile['poll_max_attempts'] = 2;
+        $profile['poll_delay_microseconds'] = 0;
+        $provider = new CscSigningProvider($profile, $client, new FakeSecrets(), static function(): void {
+        });
+
+        $this->expectException(SigningException::class);
+        $this->expectExceptionMessage('CSC signing polling timed out.');
+        $provider->sign('DSS data to sign');
+    }
+
     public function test_certificate_data_discovers_and_caches_the_configured_chain(): void {
         $client = new FakeCscHttpClient([
             ['code' => 'authorization-code'],

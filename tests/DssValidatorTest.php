@@ -44,6 +44,22 @@ final class DssValidatorTest extends TestCase {
         $this->expectException(ValidationException::class);
         $validator->validate('{"signed":true}');
     }
+
+    public function test_malformed_validation_evidence_fails(): void {
+        $client = new FakeValidationHttpClient([
+            'valid' => true,
+            'qualified' => true,
+            'certificateTrusted' => true,
+            'revocationValid' => true,
+            'timestampValid' => true,
+            'trustedListValid' => true,
+            'evidenceIdentifiers' => ['sig-1', 42],
+        ]);
+        $validator = new DssValidator($client, 'https://dss.example');
+
+        $this->expectException(ValidationException::class);
+        $validator->validate('{"signed":true}');
+    }
 }
 
 final class FakeValidationHttpClient implements HttpClientInterface {

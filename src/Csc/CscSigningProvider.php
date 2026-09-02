@@ -219,7 +219,7 @@ final class CscSigningProvider implements SigningProviderInterface, TimestampPro
             $signature = $response['signatures'][0] ?? null;
             if (is_string($signature)) {
                 $decoded = $this->decode($signature);
-                if ($decoded !== false) {
+                if ($decoded !== false && $decoded !== '') {
                     return $decoded;
                 }
             }

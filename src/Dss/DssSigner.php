@@ -185,7 +185,7 @@ final class DssSigner {
     private function decodeBytes(array $response, string $message): string {
         $encoded = $response['bytes'] ?? null;
         $decoded = is_string($encoded) ? base64_decode($encoded, true) : false;
-        if ($decoded === false) {
+        if ($decoded === false || $decoded === '') {
             throw new SigningException($message);
         }
         return $decoded;

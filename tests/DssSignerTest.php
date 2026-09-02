@@ -9,6 +9,7 @@ use IsyThl\Signing\CertificateProviderInterface;
 use IsyThl\Signing\DocumentValidatorInterface;
 use IsyThl\Signing\ValidationResult;
 use IsyThl\Signing\Exception\SigningException;
+use IsyThl\Signing\Exception\ValidationException;
 use IsyThl\Signing\Http\HttpClientInterface;
 use IsyThl\Signing\SigningProviderInterface;
 use IsyThl\Signing\TimestampProviderInterface;
@@ -95,6 +96,34 @@ final class DssSignerTest extends TestCase {
         $this->assertSame([], $calls);
     }
 
+    public function test_empty_data_to_sign_response_is_rejected_before_signing(): void {
+        $calls = [];
+        $http = new FakeDssHttpClient($calls);
+        $http->returnEmptyDataToSign = true;
+        $provider = new class($calls) implements SigningProviderInterface {
+            public function __construct(private array &$calls) {
+            }
+
+            public function sign(string $data): string {
+                $this->calls[] = 'sign';
+                return 'signature';
+            }
+
+            public function signatureAlgorithm(): string {
+                return 'RSA_SHA256';
+            }
+        };
+        $signer = new DssSigner($http, $provider, 'https://dss.example', 'certificate');
+
+        $this->expectException(SigningException::class);
+        $this->expectExceptionMessage('DSS did not return data to sign.');
+        try {
+            $signer->sign('{"id":"credential"}');
+        } finally {
+            $this->assertNotContains('sign', $calls);
+        }
+    }
+
     public function test_ecdsa_provider_selects_ecdsa_dss_encryption_algorithm(): void {
         $calls = [];
         $http = new FakeDssHttpClient($calls);
@@ -117,6 +146,28 @@ final class DssSignerTest extends TestCase {
         $signer->sign('{"id":"credential"}');
 
         $this->assertSame('ECDSA', $http->encryptionAlgorithm);
+    }
+
+    public function test_signing_date_uses_injected_clock(): void {
+        $calls = [];
+        $http = new FakeDssHttpClient($calls);
+        $signer = new DssSigner(
+            $http,
+            new class implements SigningProviderInterface {
+                public function sign(string $data): string { return 'signature'; }
+                public function signatureAlgorithm(): string { return 'RSA_SHA256'; }
+            },
+            'https://dss.example',
+            'certificate',
+            new class implements TimestampProviderInterface {
+                public function timestamp(string $document): array { return ['bytes' => 'timestamp']; }
+            },
+            static fn(): int => 1700000000123
+        );
+
+        $signer->sign('{"id":"credential"}');
+
+        $this->assertSame(1700000000123, $http->signingDate);
     }
 
     public function test_signed_document_is_validated_before_it_is_returned(): void {
@@ -148,6 +199,54 @@ final class DssSignerTest extends TestCase {
         $this->assertSame('{"signed":true}', $signer->sign('{"id":"credential"}'));
         $this->assertContains('validate', $calls);
     }
+
+    public function test_empty_signed_document_response_is_rejected(): void {
+        $calls = [];
+        $http = new FakeDssHttpClient($calls);
+        $http->returnEmptySignedDocument = true;
+        $signer = new DssSigner(
+            $http,
+            new class implements SigningProviderInterface {
+                public function sign(string $data): string { return 'signature'; }
+                public function signatureAlgorithm(): string { return 'RSA_SHA256'; }
+            },
+            'https://dss.example',
+            'certificate',
+            new class implements TimestampProviderInterface {
+                public function timestamp(string $document): array { return ['bytes' => 'timestamp']; }
+            }
+        );
+
+        $this->expectException(SigningException::class);
+        $this->expectExceptionMessage('DSS did not return a signed document.');
+        $signer->sign('{"id":"credential"}');
+    }
+
+    public function test_validation_failure_prevents_signed_document_from_being_returned(): void {
+        $calls = [];
+        $validator = new class implements DocumentValidatorInterface {
+            public function validate(string $signedDocument): ValidationResult {
+                throw new ValidationException('DSS validation rejected the signed document.');
+            }
+        };
+        $signer = new DssSigner(
+            new FakeDssHttpClient($calls),
+            new class implements SigningProviderInterface {
+                public function sign(string $data): string { return 'signature'; }
+                public function signatureAlgorithm(): string { return 'RSA_SHA256'; }
+            },
+            'https://dss.example',
+            'certificate',
+            new class implements TimestampProviderInterface {
+                public function timestamp(string $document): array { return ['bytes' => 'timestamp']; }
+            },
+            null,
+            $validator
+        );
+
+        $this->expectException(ValidationException::class);
+        $signer->sign('{"id":"credential"}');
+    }
 }
 
 final class FakeDssHttpClient implements HttpClientInterface {
@@ -157,6 +256,9 @@ final class FakeDssHttpClient implements HttpClientInterface {
     public string $encryptionAlgorithm = '';
     public string $jwsSerializationType = '';
     public bool $base64UrlEncodedEtsiUComponents = false;
+    public bool $returnEmptyDataToSign = false;
+    public bool $returnEmptySignedDocument = false;
+    public int $signingDate = 0;
 
     public function __construct(private array &$calls) {
     }
@@ -173,11 +275,12 @@ final class FakeDssHttpClient implements HttpClientInterface {
             $this->encryptionAlgorithm = $data['parameters']['encryptionAlgorithm'];
             $this->jwsSerializationType = $data['parameters']['jwsSerializationType'];
             $this->base64UrlEncodedEtsiUComponents = $data['parameters']['base64UrlEncodedEtsiUComponents'];
-            return ['bytes' => base64_encode('dss-data-to-sign')];
+            $this->signingDate = $data['parameters']['blevelParams']['signingDate'];
+            return ['bytes' => $this->returnEmptyDataToSign ? '' : base64_encode('dss-data-to-sign')];
         }
         $this->calls[] = 'signDocument';
         $this->signature = $data['signatureValue'];
-        return ['bytes' => base64_encode('{"signed":true}')];
+        return ['bytes' => $this->returnEmptySignedDocument ? '' : base64_encode('{"signed":true}')];
     }
 
     public function postForm(string $url, array $data, array $headers = [], array $tlsOptions = []): array {
