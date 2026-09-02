@@ -140,6 +140,24 @@ final class CscSigningProviderTest extends TestCase {
         $this->assertCount(4, $client->requests);
     }
 
+        public function test_unrelated_certificate_chain_is_rejected(): void {
+            $client = new FakeCscHttpClient([
+                ['code' => 'authorization-code'],
+                ['access_token' => 'access-token'],
+                ['cert' => ['certificates' => [
+                    $this->certificateDerBase64('test-chain-leaf.pem'),
+                    $this->certificateDerBase64('test-certificate.pem'),
+                ]]],
+                [],
+            ]);
+            $provider = new CscSigningProvider($this->profile(), $client, new FakeSecrets(), static function(): void {
+            });
+
+            $this->expectException(SigningException::class);
+            $this->expectExceptionMessage('CSC returned an invalid certificate chain.');
+            $provider->certificateData();
+        }
+
     public function test_ecdsa_certificate_chain_is_parseable(): void {
         $client = new FakeCscHttpClient([
             ['code' => 'authorization-code'],

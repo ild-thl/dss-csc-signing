@@ -105,6 +105,14 @@ final class CscSigningProvider implements SigningProviderInterface, TimestampPro
                 }
                 $chain[] = $certificate;
             }
+                for ($index = 0, $last = count($chain) - 1; $index < $last; $index++) {
+                    $certificate = @openssl_x509_parse($chain[$index]);
+                    $issuer = @openssl_x509_parse($chain[$index + 1]);
+                    if (!is_array($certificate) || !is_array($issuer)
+                        || ($certificate['issuer'] ?? null) !== ($issuer['subject'] ?? null)) {
+                        throw new SigningException('CSC returned an invalid certificate chain.');
+                    }
+                }
             return $this->certificateData = [
                 'certificate' => $chain[0],
                 'chain' => $chain,
