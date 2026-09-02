@@ -17,6 +17,8 @@ final class DssSigner {
     /** @var array<int, string> */
     private array $certificateChain;
 
+    private ?CertificateProviderInterface $certificateProvider = null;
+
     /**
      * @param callable(): int|null $clock Returns signing time in milliseconds.
      */
@@ -32,14 +34,17 @@ final class DssSigner {
         if ($serviceUrl === '') {
             throw new SigningException('DSS service URL and certificate are required.');
         }
-        $certificateData = $certificate instanceof CertificateProviderInterface
-            ? $certificate->certificateData()
-            : ['certificate' => $certificate, 'chain' => [$certificate]];
-        if (empty($certificateData['certificate']) || !is_string($certificateData['certificate'])) {
-            throw new SigningException('DSS signing certificate is missing.');
+        if ($certificate instanceof CertificateProviderInterface) {
+            $this->certificateProvider = $certificate;
+            $this->certificate = '';
+            $this->certificateChain = [];
+        } else {
+            if ($certificate === '') {
+                throw new SigningException('DSS signing certificate is missing.');
+            }
+            $this->certificate = $certificate;
+            $this->certificateChain = [$certificate];
         }
-        $this->certificate = $certificateData['certificate'];
-        $this->certificateChain = $certificateData['chain'] ?? [$this->certificate];
         $this->clock ??= static fn(): int => time() * 1000;
     }
 
@@ -77,6 +82,7 @@ final class DssSigner {
      * @return array<string, mixed>
      */
     private function requestBody(string $document, array $timestampData): array {
+        $this->loadCertificateData();
         return [
             'parameters' => [
                 'signingCertificate' => ['encodedCertificate' => base64_encode($this->certificate)],
@@ -146,6 +152,18 @@ final class DssSigner {
                 'name' => 'RemoteDocument',
             ],
         ];
+    }
+
+    private function loadCertificateData(): void {
+        if ($this->certificateProvider === null || $this->certificate !== '') {
+            return;
+        }
+        $certificateData = $this->certificateProvider->certificateData();
+        if (empty($certificateData['certificate']) || !is_string($certificateData['certificate'])) {
+            throw new SigningException('DSS signing certificate is missing.');
+        }
+        $this->certificate = $certificateData['certificate'];
+        $this->certificateChain = $certificateData['chain'] ?? [$this->certificate];
     }
 
     /** @return array<string, mixed> */
