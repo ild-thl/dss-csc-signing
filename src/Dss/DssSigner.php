@@ -180,7 +180,7 @@ final class DssSigner {
     private function encryptionAlgorithm(): string {
         return match ($this->signingProvider->signatureAlgorithm()) {
             'RSA_SHA256' => 'RSA',
-            'ECDSA_SHA256' => 'EC',
+            'ECDSA_SHA256' => 'ECDSA',
             default => throw new SigningException('DSS signing algorithm is not supported.'),
         };
     }

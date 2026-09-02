@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace IsyThl\Signing\Csc;
 
+use IsyThl\Signing\Exception\HttpException;
 use IsyThl\Signing\Exception\SigningException;
 use IsyThl\Signing\CertificateProviderInterface;
 use IsyThl\Signing\Http\HttpClientInterface;
@@ -176,9 +177,30 @@ final class CscSigningProvider implements SigningProviderInterface, TimestampPro
             throw new SigningException('CSC polling profile is invalid.');
         }
         for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
-            $response = $this->httpClient->postJson($this->url('api_url', '/csc/v2/signatures/signPolling'), [
-                'requestID' => $requestId,
-            ], $this->bearer($token));
+            $pending = false;
+            try {
+                $response = $this->httpClient->postJson($this->url('api_url', '/csc/v2/signatures/signPolling'), [
+                    'requestID' => $requestId,
+                ], $this->bearer($token));
+            } catch (HttpException $exception) {
+                if ($exception->statusCode !== 400 || !str_contains(
+                    strtolower($exception->getMessage()),
+                    'previous asynchronous signature request'
+                )) {
+                    throw $exception;
+                }
+                $pending = true;
+                $response = [];
+            }
+            if ($pending) {
+                if ($attempt < $maxAttempts) {
+                    ($this->sleeper)($delay);
+                }
+                continue;
+            }
+            if (array_key_exists('signatures', $response) && $response['signatures'] === []) {
+                throw new SigningException('CSC returned an empty signature response.');
+            }
             $signature = $response['signatures'][0] ?? null;
             if (is_string($signature)) {
                 $decoded = $this->decode($signature);

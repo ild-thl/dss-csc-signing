@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace IsyThl\Signing\Tests;
 
 use IsyThl\Signing\Csc\CscSigningProvider;
+use IsyThl\Signing\Exception\HttpException;
 use IsyThl\Signing\Exception\SigningException;
 use IsyThl\Signing\Http\HttpClientInterface;
 use IsyThl\Signing\Security\SecretResolverInterface;
@@ -52,6 +53,7 @@ final class CscSigningProviderTest extends TestCase {
             rtrim(strtr(base64_encode(hash('sha256', $token['code_verifier'], true)), '+/', '-_'), '='),
             $authorization['code_challenge']
         );
+        $this->assertArrayNotHasKey('user-agent', $token);
         $this->assertSame(base64_encode(hash('sha512', 'document-bytes', true)), $client->requests[2]['data']['hash']);
         $this->assertSame('2.16.840.1.101.3.4.2.3', $client->requests[2]['data']['hashAlgo']);
     }
@@ -61,8 +63,8 @@ final class CscSigningProviderTest extends TestCase {
             ['code' => 'authorization-code'],
             ['access_token' => 'access-token'],
             ['responseID' => 'request-id'],
-            ['signatures' => []],
-            ['signatures' => []],
+            new HttpException('HTTP request failed with status 400; provider error: invalid_request: The previous asynchronous signature request has been accepted for processing, but the processing has not yet been completed.', 400),
+            new HttpException('HTTP request failed with status 400; provider error: invalid_request: The previous asynchronous signature request has been accepted for processing, but the processing has not yet been completed.', 400),
             [],
         ]);
         $profile = $this->profile();
@@ -77,6 +79,44 @@ final class CscSigningProviderTest extends TestCase {
             $this->assertSame('request-id', $client->requests[3]['data']['requestID']);
             $this->assertSame('request-id', $client->requests[4]['data']['requestID']);
             $this->assertSame('/oauth2/revoke', $client->requests[5]['path']);
+        }
+    }
+
+    public function test_pending_http_400_is_retried_until_signature_is_available(): void {
+        $client = new FakeCscHttpClient([
+            ['code' => 'authorization-code'],
+            ['access_token' => 'access-token'],
+            ['responseID' => 'request-id'],
+            new HttpException('HTTP request failed with status 400; provider error: invalid_request: The previous asynchronous signature request has been accepted for processing, but the processing has not yet been completed.', 400),
+            ['signatures' => [base64_encode('signature-bytes')]],
+            [],
+        ]);
+        $provider = new CscSigningProvider($this->profile(), $client, new FakeSecrets(), static function(): void {
+        });
+
+        $this->assertSame('signature-bytes', $provider->sign('DSS data to sign'));
+        $this->assertSame('request-id', $client->requests[3]['data']['requestID']);
+        $this->assertSame('request-id', $client->requests[4]['data']['requestID']);
+        $this->assertSame('/oauth2/revoke', $client->requests[5]['path']);
+    }
+
+    public function test_empty_signature_response_fails_immediately(): void {
+        $client = new FakeCscHttpClient([
+            ['code' => 'authorization-code'],
+            ['access_token' => 'access-token'],
+            ['responseID' => 'request-id'],
+            ['signatures' => []],
+            [],
+        ]);
+        $provider = new CscSigningProvider($this->profile(), $client, new FakeSecrets(), static function(): void {
+        });
+
+        $this->expectExceptionMessage('CSC returned an empty signature response.');
+        try {
+            $provider->sign('DSS data to sign');
+        } finally {
+            $this->assertCount(5, $client->requests);
+            $this->assertSame('/oauth2/revoke', $client->requests[4]['path']);
         }
     }
 

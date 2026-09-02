@@ -116,7 +116,7 @@ final class DssSignerTest extends TestCase {
 
         $signer->sign('{"id":"credential"}');
 
-        $this->assertSame('EC', $http->encryptionAlgorithm);
+        $this->assertSame('ECDSA', $http->encryptionAlgorithm);
     }
 
     public function test_signed_document_is_validated_before_it_is_returned(): void {

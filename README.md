@@ -4,9 +4,9 @@
 JAdES signing workflows that combine:
 
 - a Digital Signature Services (DSS) API for document timestamps, JAdES
-	orchestration, and validation; and
+  orchestration, and validation; and
 - a Cloud Signature Consortium (CSC) v2 API backed by a remote qualified
-	signature creation device for hash signing and certificate operations.
+  signature creation device for hash signing and certificate operations.
 
 The package accepts serialized JSON document bytes and returns serialized signed
 document bytes. It does not depend on Moodle, Laravel, ELM, Open Badges, or any
@@ -19,7 +19,7 @@ The package currently provides:
 
 - DSS signing orchestration for JAdES baseline LTA documents;
 - CSC v2 hash signing, timestamping, certificate discovery, PKCE, polling, and
-	access-token revocation;
+  access-token revocation;
 - RSA and ECDSA signing algorithm selection;
 - certificate-chain forwarding to DSS;
 - DSS validation before a signed document is released; and
@@ -29,10 +29,10 @@ The intended signing sequence is:
 
 ```text
 DSS document timestamp
-		-> DSS getDataToSign
-		-> CSC signHash
-		-> DSS signDocument
-		-> DSS validation
+  -> DSS getDataToSign
+  -> CSC signHash
+  -> DSS signDocument
+  -> DSS validation
 ```
 
 ## Limitations
@@ -46,7 +46,7 @@ This is an early package release. It does not currently provide:
 - persistent audit storage or an application logging implementation;
 - automatic certificate renewal or outage recovery; or
 - a guarantee that every DSS or CSC provider uses the same endpoint and
-	response profile.
+  response profile.
 
 The application must verify the selected QTSP, QSCD, TSA, DSS deployment,
 trusted-list configuration, certificate purpose, and validation response schema
@@ -89,6 +89,17 @@ release preparation:
 ```sh
 composer validate --strict
 ```
+
+## Debug logging
+
+Pass an implementation of `LoggerInterface` to `CurlHttpClient` to receive
+opt-in request lifecycle diagnostics. The package logs only HTTP method,
+endpoint path, status, and transport errors. It does not log request bodies,
+headers, tokens, hashes, signatures, certificates, or secret values.
+
+The Moodle integration exposes this through the `Enable CSC/DSS debug logging`
+setting and sends the diagnostics to Moodle developer debugging. Enable it only
+while troubleshooting a controlled development or test environment.
 
 ## Releases
 
