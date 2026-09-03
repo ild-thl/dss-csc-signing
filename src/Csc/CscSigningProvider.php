@@ -79,12 +79,25 @@ final class CscSigningProvider implements
 
     public function signatureAlgorithm(): string {
         if (!empty($this->profile['dss_signature_algorithm'])) {
-            return (string) $this->profile['dss_signature_algorithm'];
+            $configured = (string) $this->profile['dss_signature_algorithm'];
+            if (!in_array($configured, ['RSA_SHA256', 'ECDSA_SHA256'], true)) {
+                throw new SigningException('DSS signing algorithm is not supported.');
+            }
+            $mapped = $this->mappedSignatureAlgorithm();
+            if ($mapped !== null && $mapped !== $configured) {
+                throw new SigningException('DSS and CSC signing algorithms do not match.');
+            }
+            return $configured;
         }
+        return $this->mappedSignatureAlgorithm()
+            ?? throw new SigningException('CSC signing algorithm is not supported.');
+    }
+
+    private function mappedSignatureAlgorithm(): ?string {
         return match ($this->profile['sign_algo']) {
             '1.2.840.10045.4.3.2' => 'ECDSA_SHA256',
             '1.2.840.113549.1.1.1' => 'RSA_SHA256',
-            default => throw new SigningException('CSC signing algorithm is not supported.'),
+            default => null,
         };
     }
 

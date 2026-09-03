@@ -263,6 +263,17 @@ final class CscSigningProviderTest extends TestCase {
         $this->assertSame('ECDSA_SHA256', $provider->signatureAlgorithm());
     }
 
+    public function test_signature_algorithm_override_must_match_csc_key_algorithm(): void {
+        $profile = $this->profile();
+        $profile['sign_algo'] = '1.2.840.113549.1.1.1';
+        $profile['dss_signature_algorithm'] = 'ECDSA_SHA256';
+        $provider = new CscSigningProvider($profile, new FakeCscHttpClient([]), new FakeSecrets());
+
+        $this->expectException(SigningException::class);
+        $this->expectExceptionMessage('DSS and CSC signing algorithms do not match.');
+        $provider->signatureAlgorithm();
+    }
+
     private function profile(): array {
         return [
             'credential_id' => 'credential-id',
