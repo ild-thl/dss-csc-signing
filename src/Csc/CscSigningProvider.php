@@ -48,6 +48,12 @@ final class CscSigningProvider implements
                 throw new SigningException('CSC endpoint must use HTTPS: ' . $endpoint);
             }
         }
+        if (isset($profile['certificate_sha256'])) {
+            $fingerprint = strtolower(str_replace([':', ' '], '', (string) $profile['certificate_sha256']));
+            if (preg_match('/\A[0-9a-f]{64}\z/D', $fingerprint) !== 1) {
+                throw new SigningException('CSC certificate fingerprint must be a SHA-256 value.');
+            }
+        }
         $this->sleeper ??= static function (int $microseconds): void {
             usleep($microseconds);
         };

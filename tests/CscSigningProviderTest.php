@@ -22,6 +22,15 @@ final class CscSigningProviderTest extends TestCase {
         new CscSigningProvider($profile, new FakeCscHttpClient([]), new FakeSecrets());
     }
 
+    public function test_certificate_fingerprint_configuration_must_be_sha256(): void {
+        $profile = $this->profile();
+        $profile['certificate_sha256'] = 'not-a-fingerprint';
+
+        $this->expectException(SigningException::class);
+        $this->expectExceptionMessage('CSC certificate fingerprint must be a SHA-256 value.');
+        new CscSigningProvider($profile, new FakeCscHttpClient([]), new FakeSecrets());
+    }
+
     public function test_signs_only_the_digest_uses_profile_values_and_revokes(): void {
         $client = new FakeCscHttpClient([
             ['code' => 'authorization-code'],
@@ -197,6 +206,24 @@ final class CscSigningProviderTest extends TestCase {
         $this->expectException(SigningException::class);
         $this->expectExceptionMessage('CSC certificate does not match the configured fingerprint.');
         $provider->certificateData();
+    }
+
+    public function test_certificate_fingerprint_accepts_normalized_matching_value(): void {
+        $client = new FakeCscHttpClient([
+            ['code' => 'authorization-code'],
+            ['access_token' => 'access-token'],
+            ['cert' => ['certificates' => [$this->certificateDerBase64()]]],
+            [],
+        ]);
+        $profile = $this->profile();
+        $profile['certificate_sha256'] = '1B:76:3C:AD:D9:41:3F:0B:F6:B0:54:B4:E0:C1:D9:CE:D3:'
+            . '0D:A3:60:11:E5:CF:31:FE:69:1C:0C:5B:69:A1:82';
+        $provider = new CscSigningProvider($profile, $client, new FakeSecrets(), static function (): void {
+        });
+
+        $certificateData = $provider->certificateData();
+
+        $this->assertCount(1, $certificateData['chain']);
     }
 
     public function test_unrelated_certificate_chain_is_rejected(): void {
