@@ -29,3 +29,4 @@ jobs:
       - run: composer style
       - run: composer analyse
       - run: vendor/bin/phpunit -c phpunit.xml
+      - run: composer install --no-dev --no-interaction --prefer-dist --no-progress

@@ -73,6 +73,33 @@ CSC provider, HTTP client, secret resolver, and certificate/validation
 boundaries according to their own configuration. See the classes and tests for
 small fake-client examples.
 
+## Application wiring
+
+The signing package accepts serialized document bytes, so an application owns
+document construction and serialization. A framework-neutral application can
+wire the package like this after loading its profile and secret configuration:
+
+```php
+$http = new CurlHttpClient();
+$secrets = new EnvironmentSecretResolver();
+$csc = new CscSigningProvider($profile, $http, $secrets);
+$validator = new DssValidator($http, $dssUrl);
+$signer = new DssSigner(
+  $http,
+  $csc,
+  $dssUrl,
+  $csc,
+  $csc,
+  null,
+  $validator
+);
+
+$signedDocument = $signer->sign($documentJson, $trustedMetadata);
+```
+
+The application should supply its own document mapper, configuration binding,
+secret storage, logging, queueing, retry policy, and audit persistence.
+
 ## Development and testing
 
 Clone the repository and install development dependencies:
