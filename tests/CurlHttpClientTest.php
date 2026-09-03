@@ -84,6 +84,14 @@ final class CurlHttpClientTest extends TestCase {
         $client->postJson('https://example.test', []);
     }
 
+    public function test_malformed_transport_response_fails_with_typed_exception(): void {
+        $client = new CurlHttpClient(static fn(): array => []);
+
+        $this->expectException(HttpException::class);
+        $this->expectExceptionMessage('HTTP client returned a malformed response.');
+        $client->postJson('https://example.test', []);
+    }
+
     public function test_debug_logging_contains_transport_metadata_but_not_request_data(): void {
         $messages = [];
         $client = new CurlHttpClient(

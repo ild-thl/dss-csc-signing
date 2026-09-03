@@ -112,6 +112,16 @@ final class CurlHttpClient implements HttpClientInterface {
             'content_type' => $contentType,
         ]);
         $response = ($this->request)($url, $body, $contentType, $headers, $tlsOptions);
+        if (
+            !array_key_exists('body', $response)
+            || !array_key_exists('status', $response)
+            || !array_key_exists('error', $response)
+            || !is_int($response['status'])
+            || !is_string($response['error'])
+            || (!is_string($response['body']) && $response['body'] !== false)
+        ) {
+            throw new HttpException('HTTP client returned a malformed response.', 0);
+        }
         $errorDetails = $this->errorDetails($response['body']);
         $this->logger?->debug('HTTP request completed.', [
             'method' => 'POST',
