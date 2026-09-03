@@ -97,6 +97,50 @@ final class DssSignerTest extends TestCase {
         $this->assertSame([], $calls);
     }
 
+    public function test_dss_service_url_must_use_https(): void {
+        $calls = [];
+        $this->expectException(SigningException::class);
+        $this->expectExceptionMessage('DSS service URL must use HTTPS.');
+        new DssSigner(
+            new FakeDssHttpClient($calls),
+            new class implements SigningProviderInterface {
+                public function sign(string $data): string {
+                    return 'signature';
+                }
+
+                public function signatureAlgorithm(): string {
+                    return 'RSA_SHA256';
+                }
+            },
+            'http://dss.example',
+            'certificate'
+        );
+    }
+
+    public function test_insecure_dss_transport_requires_explicit_opt_in(): void {
+        $calls = [];
+        new DssSigner(
+            new FakeDssHttpClient($calls),
+            new class implements SigningProviderInterface {
+                public function sign(string $data): string {
+                    return 'signature';
+                }
+
+                public function signatureAlgorithm(): string {
+                    return 'RSA_SHA256';
+                }
+            },
+            'http://dss.example',
+            'certificate',
+            null,
+            null,
+            null,
+            true
+        );
+
+        $this->addToAssertionCount(1);
+    }
+
     public function test_empty_data_to_sign_response_is_rejected_before_signing(): void {
         $calls = [];
         $http = new FakeDssHttpClient($calls);

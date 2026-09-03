@@ -52,8 +52,10 @@ The application must verify the selected QTSP, QSCD, TSA, DSS deployment,
 trusted-list configuration, certificate purpose, and validation response schema
 before production issuance. Private keys, client secrets, access tokens, and
 mTLS material must be resolved at runtime and must not be committed or logged.
-CSC OAuth and API endpoints must use HTTPS; the package rejects non-HTTPS
-endpoints during provider construction.
+DSS and CSC endpoints use HTTPS by default, and the package rejects
+non-HTTPS endpoints during provider construction. For isolated development
+or test deployments only, DSS transport can be explicitly opted into with
+`allowInsecureTransport: true`; this option is not available for CSC.
 
 ## Requirements
 

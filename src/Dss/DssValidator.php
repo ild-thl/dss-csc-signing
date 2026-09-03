@@ -14,9 +14,14 @@ final class DssValidator implements DocumentValidatorInterface {
     public function __construct(
         private HttpClientInterface $httpClient,
         private string $serviceUrl,
-        private string $validationPath = '/validation/validateDocument'
+        private string $validationPath = '/validation/validateDocument',
+        private bool $allowInsecureTransport = false
     ) {
-        if ($serviceUrl === '' || $validationPath === '') {
+        if (
+            $serviceUrl === ''
+            || (!$this->allowInsecureTransport && parse_url($serviceUrl, PHP_URL_SCHEME) !== 'https')
+            || $validationPath === ''
+        ) {
             throw new ValidationException('DSS validation endpoint is not configured.');
         }
     }
@@ -43,7 +48,7 @@ final class DssValidator implements DocumentValidatorInterface {
         if (
             !is_array($evidence)
             || $evidence === []
-            || array_filter($evidence, static fn($value): bool => !is_string($value) || $value === '')
+            || array_filter($evidence, static fn($value): bool => !is_string($value) || trim($value) === '')
         ) {
             throw new ValidationException('DSS validation evidence identifiers are malformed.', $report);
         }

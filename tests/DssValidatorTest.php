@@ -11,6 +11,18 @@ use PHPUnit\Framework\TestCase;
 
 final class DssValidatorTest extends TestCase {
 
+    public function test_dss_validation_url_must_use_https(): void {
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('DSS validation endpoint is not configured.');
+        new DssValidator(new FakeValidationHttpClient([]), 'http://dss.example');
+    }
+
+    public function test_insecure_dss_validation_requires_explicit_opt_in(): void {
+        new DssValidator(new FakeValidationHttpClient([]), 'http://dss.example', '/validation', true);
+
+        $this->addToAssertionCount(1);
+    }
+
     public function test_validation_requires_qualification_evidence(): void {
         $client = new FakeValidationHttpClient([
             'valid' => true,
@@ -96,6 +108,24 @@ final class DssValidatorTest extends TestCase {
             'certificatePurposeValid' => true,
             'signingTimeQualified' => true,
             'evidenceIdentifiers' => [],
+        ]);
+        $validator = new DssValidator($client, 'https://dss.example');
+
+        $this->expectException(ValidationException::class);
+        $validator->validate('{"signed":true}');
+    }
+
+    public function test_whitespace_validation_evidence_fails(): void {
+        $client = new FakeValidationHttpClient([
+            'valid' => true,
+            'qualified' => true,
+            'certificateTrusted' => true,
+            'revocationValid' => true,
+            'timestampValid' => true,
+            'trustedListValid' => true,
+            'certificatePurposeValid' => true,
+            'signingTimeQualified' => true,
+            'evidenceIdentifiers' => ['  '],
         ]);
         $validator = new DssValidator($client, 'https://dss.example');
 

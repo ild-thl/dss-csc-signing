@@ -30,10 +30,14 @@ final class DssSigner {
         string|CertificateProviderInterface $certificate,
         private ?TimestampProviderInterface $timestampProvider = null,
         private $clock = null,
-        private ?DocumentValidatorInterface $validator = null
+        private ?DocumentValidatorInterface $validator = null,
+        private bool $allowInsecureTransport = false
     ) {
-        if ($serviceUrl === '') {
-            throw new SigningException('DSS service URL and certificate are required.');
+        if (
+            $serviceUrl === ''
+            || (!$this->allowInsecureTransport && parse_url($serviceUrl, PHP_URL_SCHEME) !== 'https')
+        ) {
+            throw new SigningException('DSS service URL must use HTTPS.');
         }
         if ($certificate instanceof CertificateProviderInterface) {
             $this->certificateProvider = $certificate;
