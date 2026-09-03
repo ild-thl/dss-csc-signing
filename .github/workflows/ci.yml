@@ -27,4 +27,5 @@ jobs:
       - run: composer validate --strict
       - run: composer lint
       - run: composer style
+      - run: composer analyse
       - run: vendor/bin/phpunit -c phpunit.xml

@@ -93,6 +93,7 @@ composer validate --strict
 composer lint
 composer format
 composer style
+composer analyse
 ```
 
 ## Debug logging

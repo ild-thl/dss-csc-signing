@@ -1,4 +1,5 @@
 /vendor/
+/build/phpstan/
 .phpunit.result.cache
 .idea/
 .vscode/

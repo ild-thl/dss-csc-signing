@@ -163,11 +163,11 @@ final class DssSigner {
             return;
         }
         $certificateData = $this->certificateProvider->certificateData();
-        if (empty($certificateData['certificate']) || !is_string($certificateData['certificate'])) {
+        if ($certificateData['certificate'] === '') {
             throw new SigningException('DSS signing certificate is missing.');
         }
         $this->certificate = $certificateData['certificate'];
-        $this->certificateChain = $certificateData['chain'] ?? [$this->certificate];
+        $this->certificateChain = $certificateData['chain'];
     }
 
     /** @return array<string, mixed> */

@@ -10,17 +10,20 @@ use JsonException;
 
 final class CurlHttpClient implements HttpClientInterface {
 
+    /** @var callable|null */
+    private $request;
+
     /**
     * @param callable(
     *     string, string, string, array<int, string>, array<string, string>
     * ): array{body: string|false, status: int, error: string} $request
      */
     public function __construct(
-        private $request = null,
+        ?callable $request = null,
         private ?LoggerInterface $logger = null,
         private string $userAgent = 'isy-thl/dss-csc-signing'
     ) {
-        $this->request ??= function (
+        $this->request = $request ?? function (
             string $url,
             string $body,
             string $contentType,
@@ -58,6 +61,12 @@ final class CurlHttpClient implements HttpClientInterface {
         };
     }
 
+    /**
+     * @param array<string, mixed> $data
+     * @param array<int, string> $headers
+     * @param array<string, string|null> $tlsOptions
+     * @return array<string, mixed>
+     */
     public function postJson(string $url, array $data, array $headers = [], array $tlsOptions = []): array {
         try {
             $body = json_encode($data, JSON_THROW_ON_ERROR);
@@ -67,6 +76,12 @@ final class CurlHttpClient implements HttpClientInterface {
         return $this->post($url, $body, 'application/json', $headers, $tlsOptions);
     }
 
+    /**
+     * @param array<string, mixed> $data
+     * @param array<int, string> $headers
+     * @param array<string, string|null> $tlsOptions
+     * @return array<string, mixed>
+     */
     public function postForm(string $url, array $data, array $headers = [], array $tlsOptions = []): array {
         return $this->post(
             $url,
@@ -77,7 +92,11 @@ final class CurlHttpClient implements HttpClientInterface {
         );
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * @param array<int, string> $headers
+     * @param array<string, string|null> $tlsOptions
+     * @return array<string, mixed>
+     */
     private function post(string $url, string $body, string $contentType, array $headers, array $tlsOptions): array {
         if (!$this->hasHeader($headers, 'User-Agent')) {
             $headers[] = 'User-Agent: ' . $this->userAgent;
