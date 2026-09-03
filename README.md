@@ -52,6 +52,8 @@ The application must verify the selected QTSP, QSCD, TSA, DSS deployment,
 trusted-list configuration, certificate purpose, and validation response schema
 before production issuance. Private keys, client secrets, access tokens, and
 mTLS material must be resolved at runtime and must not be committed or logged.
+CSC OAuth and API endpoints must use HTTPS; the package rejects non-HTTPS
+endpoints during provider construction.
 
 ## Requirements
 

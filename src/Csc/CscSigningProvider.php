@@ -43,6 +43,11 @@ final class CscSigningProvider implements
                 throw new SigningException('CSC profile is missing: ' . $field);
             }
         }
+        foreach (['oauth2_url', 'api_url'] as $endpoint) {
+            if (parse_url($profile[$endpoint], PHP_URL_SCHEME) !== 'https') {
+                throw new SigningException('CSC endpoint must use HTTPS: ' . $endpoint);
+            }
+        }
         $this->sleeper ??= static function (int $microseconds): void {
             usleep($microseconds);
         };

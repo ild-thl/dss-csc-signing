@@ -13,6 +13,15 @@ use PHPUnit\Framework\TestCase;
 
 final class CscSigningProviderTest extends TestCase {
 
+    public function test_signing_endpoints_must_use_https(): void {
+        $profile = $this->profile();
+        $profile['api_url'] = 'http://api.example';
+
+        $this->expectException(SigningException::class);
+        $this->expectExceptionMessage('CSC endpoint must use HTTPS: api_url');
+        new CscSigningProvider($profile, new FakeCscHttpClient([]), new FakeSecrets());
+    }
+
     public function test_signs_only_the_digest_uses_profile_values_and_revokes(): void {
         $client = new FakeCscHttpClient([
             ['code' => 'authorization-code'],
