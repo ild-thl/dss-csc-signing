@@ -104,6 +104,11 @@ $signedDocument = $signer->sign($documentJson, $trustedMetadata);
 The application should supply its own document mapper, configuration binding,
 secret storage, logging, queueing, retry policy, and audit persistence.
 
+For deployments that need explicit credential-to-certificate pinning, a CSC
+profile may include `certificate_sha256` with the expected SHA-256 fingerprint
+of the leaf certificate. The provider rejects a discovered certificate that
+does not match this value.
+
 ## Development and testing
 
 Clone the repository and install development dependencies:

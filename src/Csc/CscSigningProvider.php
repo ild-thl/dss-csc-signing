@@ -119,6 +119,17 @@ final class CscSigningProvider implements
                 }
                 $chain[] = $certificate;
             }
+            if (isset($this->profile['certificate_sha256'])) {
+                $expectedFingerprint = strtolower((string) $this->profile['certificate_sha256']);
+                $expectedFingerprint = str_replace([':', ' '], '', $expectedFingerprint);
+                $actualFingerprint = @openssl_x509_fingerprint($chain[0], 'sha256');
+                if (
+                    !is_string($actualFingerprint)
+                    || strtolower(str_replace(':', '', $actualFingerprint)) !== $expectedFingerprint
+                ) {
+                    throw new SigningException('CSC certificate does not match the configured fingerprint.');
+                }
+            }
             for ($index = 0, $last = count($chain) - 1; $index < $last; $index++) {
                 $certificate = @openssl_x509_parse($chain[$index]);
                 $issuer = @openssl_x509_parse($chain[$index + 1]);

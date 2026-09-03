@@ -182,6 +182,23 @@ final class CscSigningProviderTest extends TestCase {
         $this->assertCount(4, $client->requests);
     }
 
+    public function test_certificate_fingerprint_mismatch_is_rejected(): void {
+        $client = new FakeCscHttpClient([
+            ['code' => 'authorization-code'],
+            ['access_token' => 'access-token'],
+            ['cert' => ['certificates' => [$this->certificateDerBase64()]]],
+            [],
+        ]);
+        $profile = $this->profile();
+        $profile['certificate_sha256'] = str_repeat('0', 64);
+        $provider = new CscSigningProvider($profile, $client, new FakeSecrets(), static function (): void {
+        });
+
+        $this->expectException(SigningException::class);
+        $this->expectExceptionMessage('CSC certificate does not match the configured fingerprint.');
+        $provider->certificateData();
+    }
+
     public function test_unrelated_certificate_chain_is_rejected(): void {
         $client = new FakeCscHttpClient([
             ['code' => 'authorization-code'],
