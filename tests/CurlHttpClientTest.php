@@ -11,6 +11,11 @@ use PHPUnit\Framework\TestCase;
 
 final class CurlHttpClientTest extends TestCase {
 
+    public function test_timeouts_must_be_positive(): void {
+        $this->expectException(\InvalidArgumentException::class);
+        new CurlHttpClient(null, null, 'test-agent', 0);
+    }
+
     public function test_json_and_form_requests_are_encoded_and_tls_options_forwarded(): void {
         $requests = [];
         $client = new CurlHttpClient(static function (

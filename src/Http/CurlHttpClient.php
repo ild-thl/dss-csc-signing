@@ -21,8 +21,13 @@ final class CurlHttpClient implements HttpClientInterface {
     public function __construct(
         ?callable $request = null,
         private ?LoggerInterface $logger = null,
-        private string $userAgent = 'isy-thl/dss-csc-signing'
+        private string $userAgent = 'isy-thl/dss-csc-signing',
+        private int $connectTimeout = 10,
+        private int $requestTimeout = 30
     ) {
+        if ($this->connectTimeout < 1 || $this->requestTimeout < 1) {
+              throw new \InvalidArgumentException('HTTP timeouts must be positive.');
+        }
         $this->request = $request ?? function (
             string $url,
             string $body,
@@ -38,8 +43,8 @@ final class CurlHttpClient implements HttpClientInterface {
                 CURLOPT_HTTPHEADER => array_merge($headers, [
                     'Content-Type: ' . $contentType,
                 ]),
-                CURLOPT_CONNECTTIMEOUT => 10,
-                CURLOPT_TIMEOUT => 30,
+                CURLOPT_CONNECTTIMEOUT => $this->connectTimeout,
+                CURLOPT_TIMEOUT => $this->requestTimeout,
             ]);
             if (!empty($tlsOptions['certificate'])) {
                 curl_setopt($curl, CURLOPT_SSLCERT, $tlsOptions['certificate']);
