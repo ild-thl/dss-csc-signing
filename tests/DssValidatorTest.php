@@ -19,6 +19,8 @@ final class DssValidatorTest extends TestCase {
             'revocationValid' => true,
             'timestampValid' => true,
             'trustedListValid' => true,
+            'certificatePurposeValid' => true,
+            'signingTimeQualified' => true,
             'evidenceIdentifiers' => ['sig-1', 'ts-1'],
         ]);
         $validator = new DssValidator($client, 'https://dss.example');
@@ -39,6 +41,8 @@ final class DssValidatorTest extends TestCase {
             'revocationValid' => true,
             'timestampValid' => true,
             'trustedListValid' => true,
+            'certificatePurposeValid' => true,
+            'signingTimeQualified' => true,
         ]);
         $validator = new DssValidator($client, 'https://dss.example');
 
@@ -54,7 +58,44 @@ final class DssValidatorTest extends TestCase {
             'revocationValid' => true,
             'timestampValid' => true,
             'trustedListValid' => true,
+            'certificatePurposeValid' => true,
+            'signingTimeQualified' => true,
             'evidenceIdentifiers' => ['sig-1', 42],
+        ]);
+        $validator = new DssValidator($client, 'https://dss.example');
+
+        $this->expectException(ValidationException::class);
+        $validator->validate('{"signed":true}');
+    }
+
+    public function test_invalid_certificate_purpose_fails_qualified_policy(): void {
+        $client = new FakeValidationHttpClient([
+            'valid' => true,
+            'qualified' => true,
+            'certificateTrusted' => true,
+            'revocationValid' => true,
+            'timestampValid' => true,
+            'trustedListValid' => true,
+            'certificatePurposeValid' => false,
+            'signingTimeQualified' => true,
+        ]);
+        $validator = new DssValidator($client, 'https://dss.example');
+
+        $this->expectException(ValidationException::class);
+        $validator->validate('{"signed":true}');
+    }
+
+    public function test_empty_validation_evidence_fails(): void {
+        $client = new FakeValidationHttpClient([
+            'valid' => true,
+            'qualified' => true,
+            'certificateTrusted' => true,
+            'revocationValid' => true,
+            'timestampValid' => true,
+            'trustedListValid' => true,
+            'certificatePurposeValid' => true,
+            'signingTimeQualified' => true,
+            'evidenceIdentifiers' => [],
         ]);
         $validator = new DssValidator($client, 'https://dss.example');
 

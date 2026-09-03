@@ -32,6 +32,7 @@ final class DssValidator implements DocumentValidatorInterface {
         foreach (
             [
                 'valid', 'qualified', 'certificateTrusted', 'revocationValid', 'timestampValid', 'trustedListValid',
+                'certificatePurposeValid', 'signingTimeQualified',
             ] as $field
         ) {
             if (!isset($report[$field]) || !is_bool($report[$field])) {
@@ -39,7 +40,11 @@ final class DssValidator implements DocumentValidatorInterface {
             }
         }
         $evidence = $report['evidenceIdentifiers'] ?? [];
-        if (!is_array($evidence) || array_filter($evidence, static fn($value): bool => !is_string($value))) {
+        if (
+            !is_array($evidence)
+            || $evidence === []
+            || array_filter($evidence, static fn($value): bool => !is_string($value) || $value === '')
+        ) {
             throw new ValidationException('DSS validation evidence identifiers are malformed.', $report);
         }
         $result = new ValidationResult(
@@ -51,6 +56,7 @@ final class DssValidator implements DocumentValidatorInterface {
         if (
             !$result->isValid() || !$result->isQualified() || !$report['certificateTrusted']
             || !$report['revocationValid'] || !$report['timestampValid'] || !$report['trustedListValid']
+            || !$report['certificatePurposeValid'] || !$report['signingTimeQualified']
         ) {
             throw new ValidationException('DSS validation did not meet the qualified issuance policy.', $report);
         }
