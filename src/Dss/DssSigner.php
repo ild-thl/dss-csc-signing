@@ -58,7 +58,7 @@ final class DssSigner {
      */
     public function sign(string $document, array $trustedMetadata = []): string {
         $documentData = json_decode($document, true);
-        if (json_last_error() !== JSON_ERROR_NONE || !is_array($documentData)) {
+        if (json_last_error() !== JSON_ERROR_NONE || !is_array($documentData) || array_is_list($documentData)) {
             throw new SigningException('Document must be a JSON object.');
         }
 
